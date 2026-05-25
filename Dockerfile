@@ -19,7 +19,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm build
+RUN pnpm build && pnpm prune --prod
 
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -27,7 +27,10 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOST=0.0.0.0
 
+# adapter-node leaves some deps external (e.g. @supabase/supabase-js), so the
+# runtime needs the production node_modules alongside the build output.
 COPY --from=builder /app/build ./build
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 
 EXPOSE 3000
