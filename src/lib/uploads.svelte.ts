@@ -1,4 +1,3 @@
-import * as tus from 'tus-js-client';
 import {
 	supabase,
 	supabaseUrl,
@@ -97,7 +96,10 @@ class UploadQueue {
 // schema-requires the header, and the JWT decoder rejects non-JWT publishable
 // keys). apikey is sent alongside so the call is also valid for clients/SDKs
 // that auth via that path.
-function uploadResumable(item: UploadItem): Promise<void> {
+async function uploadResumable(item: UploadItem): Promise<void> {
+	// Dynamic import so this runs only in the browser; tus-js-client uses
+	// XHR / File APIs and isn't safe to evaluate during SSR.
+	const tus = await import('tus-js-client');
 	return new Promise((resolve, reject) => {
 		const upload = new tus.Upload(item.file, {
 			endpoint: `${supabaseUrl}/storage/v1/upload/resumable`,
