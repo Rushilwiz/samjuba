@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        PUBLIC_SUPABASE_URL: ${PUBLIC_SUPABASE_URL}
+        PUBLIC_SUPABASE_ANON_KEY: ${PUBLIC_SUPABASE_ANON_KEY}
+        PUBLIC_SUPABASE_BUCKET: ${PUBLIC_SUPABASE_BUCKET:-samjuba-uploads}
+        PUBLIC_UPLOADS_TABLE: ${PUBLIC_UPLOADS_TABLE:-uploads}
+    image: samjuba
+    container_name: samjuba
+    ports:
+      - "7777:3000"
+    restart: unless-stopped

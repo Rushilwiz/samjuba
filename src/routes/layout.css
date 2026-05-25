@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+
+@theme {
+	--font-gujarati: 'skolar-gujarati', serif;
+	--font-script: 'square-peg', cursive;
+	--font-sans: 'work-sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+	--color-page: #fafafa;
+	--color-ink: #111111;
+}
+
+html,
+body {
+	background: var(--color-page);
+	color: var(--color-ink);
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
