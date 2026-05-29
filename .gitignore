@@ -1,5 +1,9 @@
 node_modules
 
+# mjs scripts
+*.mjs
+photos/
+
 # Output
 .output
 .vercel
