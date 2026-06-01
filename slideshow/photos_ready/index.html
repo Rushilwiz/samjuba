@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>In Loving Memory</title>
+    <style>
+      :root {
+        --fade: 1500ms;
+      } /* crossfade duration */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+        cursor: none;
+      }
+
+      #stage {
+        position: fixed;
+        inset: 0;
+        background: #000;
+      }
+
+      /* two stacked layers we crossfade between */
+      .layer {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity var(--fade) ease-in-out;
+      }
+      .layer.show {
+        opacity: 1;
+      }
+
+      .layer img,
+      .layer video {
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+        object-fit: contain;
+      }
+
+      /* start overlay (needed: browsers require a gesture for fullscreen + audio) */
+      #start {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+        color: #e8e3d8;
+        cursor: pointer;
+        font-family: Georgia, "Times New Roman", serif;
+        text-align: center;
+        padding: 2rem;
+      }
+      #start h1 {
+        font-weight: normal;
+        font-size: 2.4rem;
+        letter-spacing: 0.04em;
+      }
+      #start h3 {
+        font-weight: normal;
+        font-size: 4.8rem;
+        letter-spacing: 0.04em;
+        margin-bottom: 1rem;
+      }
+      #start p {
+        font-size: 1.1rem;
+        opacity: 0.7;
+      }
+      .hidden {
+        display: none !important;
+      }
+
+      #err {
+        position: fixed;
+        bottom: 8px;
+        left: 8px;
+        z-index: 20;
+        color: #663;
+        font: 12px monospace;
+        opacity: 0.35;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <div class="layer" id="layerA"></div>
+      <div class="layer" id="layerB"></div>
+    </div>
+
+    <div id="start">
+      <h1>In Loving Memory</h1>
+      <h3>Samjuben Shamjibhai Vaghani</h3>
+      <p>Click anywhere to begin</p>
+    </div>
+
+    <div id="err"></div>
+
+    <script>
+      (() => {
+        const IMAGE_SECONDS = 30;
+        const MANIFEST_URL = "manifest.json";
+
+        const layers = [
+          document.getElementById("layerA"),
+          document.getElementById("layerB"),
+        ];
+        const startEl = document.getElementById("start");
+        const errEl = document.getElementById("err");
+
+        let items = [];
+        let order = [];
+        let pos = 0;
+        let front = 0; // index into layers[] currently shown
+        let timer = null;
+
+        const logErr = (m) => {
+          errEl.textContent = m;
+          console.warn(m);
+        };
+
+        // Fisher-Yates
+        function shuffle(a) {
+          for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+          }
+          return a;
+        }
+
+        function nextIndex() {
+          if (pos >= order.length) {
+            // looped through everything -> reshuffle
+            order = shuffle([...Array(items.length).keys()]);
+            pos = 0;
+          }
+          return order[pos++];
+        }
+
+        // Build a DOM node for an item; calls onReady when it can be shown,
+        // onDone when its display time is over, onFail if it can't load.
+        function buildNode(item, onReady, onDone, onFail) {
+          if (item.type === "video") {
+            const v = document.createElement("video");
+            v.src = item.file;
+            v.autoplay = false;
+            v.muted = false; // sound ON, per request
+            v.playsInline = true;
+            v.preload = "auto";
+            v.oncanplay = () => onReady(v);
+            v.onended = () => onDone();
+            v.onerror = () => onFail("video failed: " + item.file);
+            return v;
+          } else {
+            const img = new Image();
+            img.src = item.file;
+            img.onload = () => {
+              onReady(img);
+              timer = setTimeout(onDone, IMAGE_SECONDS * 1000);
+            };
+            img.onerror = () => onFail("image failed: " + item.file);
+            return img;
+          }
+        }
+
+        function advance() {
+          if (timer) {
+            clearTimeout(timer);
+            timer = null;
+          }
+
+          let idx = nextIndex();
+          let item = items[idx];
+          let attempts = 0;
+
+          const tryShow = () => {
+            attempts++;
+            if (attempts > items.length + 1) {
+              logErr("all items failed to load");
+              return;
+            }
+
+            const backLayer = layers[1 - front];
+
+            const node = buildNode(
+              item,
+              // onReady: swap node into back layer, crossfade, start video if needed
+              (el) => {
+                backLayer.innerHTML = "";
+                backLayer.appendChild(el);
+                // force reflow so transition fires
+                void backLayer.offsetWidth;
+                layers[front].classList.remove("show");
+                backLayer.classList.add("show");
+                front = 1 - front;
+                if (el.tagName === "VIDEO") {
+                  el.play().catch(() => {
+                    /* if autoplay blocked, skip on */ onDoneSafe();
+                  });
+                }
+                errEl.textContent = "";
+              },
+              // onDone: move to the next item
+              () => advance(),
+              // onFail: skip to the next item immediately
+              (msg) => {
+                logErr(msg);
+                idx = nextIndex();
+                item = items[idx];
+                tryShow();
+              },
+            );
+          };
+
+          let doneCalled = false;
+          const onDoneSafe = () => {
+            if (!doneCalled) {
+              doneCalled = true;
+              advance();
+            }
+          };
+
+          tryShow();
+        }
+
+        async function init() {
+          try {
+            const res = await fetch(MANIFEST_URL, { cache: "no-store" });
+            items = await res.json();
+          } catch (e) {
+            logErr(
+              "could not load manifest.json — are you serving over http? " +
+                e.message,
+            );
+            return;
+          }
+          if (!items.length) {
+            logErr("manifest is empty");
+            return;
+          }
+          order = shuffle([...Array(items.length).keys()]);
+          pos = 0;
+          advance();
+        }
+
+        function begin() {
+          startEl.classList.add("hidden");
+          const el = document.documentElement;
+          (el.requestFullscreen || el.webkitRequestFullscreen || (() => {}))
+            .call(el)
+            ?.catch?.(() => {});
+          init();
+        }
+
+        startEl.addEventListener("click", begin, { once: true });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "f") {
+            const el = document.documentElement;
+            (el.requestFullscreen || (() => {})).call(el);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
